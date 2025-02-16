@@ -1,6 +1,7 @@
 "use client";
 
 import type { Database } from "@/types/supabase";
+import { useEffect, useState } from "react";
 
 interface AnalysisCardProps {
   recordings: {
@@ -17,7 +18,44 @@ interface AnalysisCardProps {
   type: "afib" | "irregular" | "regular" | "unclassified";
 }
 
+interface AIClassification {
+  classification: "regular" | "irregular" | "afib" | "unclassified";
+  confidence: number;
+}
+
 export default function AnalysisCard({ recordings, metadata, type }: AnalysisCardProps) {
+  const [aiClassification, setAiClassification] = useState<AIClassification | null>(null);
+  const [isClassifying, setIsClassifying] = useState(false);
+
+  useEffect(() => {
+    async function getClassification() {
+      if (!metadata || isClassifying) return;
+
+      setIsClassifying(true);
+      try {
+        const response = await fetch("/api/classify-recording", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ recordings, metadata }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setAiClassification({
+            classification: data.classification,
+            confidence: data.confidence,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to get AI classification:", error);
+      } finally {
+        setIsClassifying(false);
+      }
+    }
+
+    getClassification();
+  }, [recordings, metadata, isClassifying]);
+
   if (!metadata) return null;
 
   // Calculate key metrics
@@ -54,6 +92,39 @@ export default function AnalysisCard({ recordings, metadata, type }: AnalysisCar
           <p className="font-medium text-foreground">Motion Intensity:</p>
           <p className="text-muted-foreground">{motionIntensity.toFixed(2)}</p>
         </div>
+      </div>
+
+      {/* AI Classification */}
+      <div className="mb-4">
+        <h5 className="mb-2 font-medium text-foreground">AI Classification</h5>
+        {isClassifying ? (
+          <p className="text-sm text-muted-foreground">Analyzing...</p>
+        ) : aiClassification ? (
+          <div>
+            <div
+              className={`
+                mb-2 rounded-md px-2 py-1 text-sm font-medium
+                ${
+                  aiClassification.classification === "afib"
+                    ? "bg-red-100 text-red-700"
+                    : aiClassification.classification === "irregular"
+                      ? "bg-yellow-100 text-yellow-700"
+                      : aiClassification.classification === "unclassified"
+                        ? "bg-blue-100 text-blue-700"
+                        : "bg-green-100 text-green-700"
+                }
+              `}
+            >
+              Classified as {aiClassification.classification.toUpperCase()}
+              <span className="ml-2 text-xs">({(aiClassification.confidence * 100).toFixed(1)}% confidence)</span>
+            </div>
+            {aiClassification.classification !== type && (
+              <p className="text-sm text-amber-600">Note: AI classification differs from current classification</p>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Classification unavailable</p>
+        )}
       </div>
 
       {/* Risk Assessment */}
