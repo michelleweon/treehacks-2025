@@ -1,7 +1,7 @@
 "use client";
 
 import type { Database } from "@/types/supabase";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface AnalysisCardProps {
   recordings: {
@@ -65,8 +65,8 @@ export default function AnalysisCard({ recordings, metadata, type }: AnalysisCar
           }
         }
       } catch (error) {
-        if (error.name === 'AbortError') {
-          console.log('Request timed out');
+        if (error.name === "AbortError") {
+          console.log("Request timed out");
         } else {
           console.error("Failed to get AI classification:", error);
         }
@@ -84,10 +84,22 @@ export default function AnalysisCard({ recordings, metadata, type }: AnalysisCar
 
   useEffect(() => {
     async function fetchPerplexityAnalysis() {
+      if (!metadata || !recordings.length) return;
+
       try {
-        const response = await fetch("/api/analyze");
+        const response = await fetch("/api/analyze", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            recordings,
+            metadata,
+          }),
+        });
+
         if (response.ok) {
-          const data: unknown = await response.json();
+          const data = await response.json();
           if (isPerplexityAnalysisResponse(data)) {
             setPerplexityAnalysis(data.analysis);
           } else {
@@ -101,12 +113,8 @@ export default function AnalysisCard({ recordings, metadata, type }: AnalysisCar
       }
     }
 
-    (async () => {
-      await fetchPerplexityAnalysis();
-    })().catch((error) => {
-      console.error("Error in perplexity analysis effect:", error);
-    });
-  }, []);
+    void fetchPerplexityAnalysis();
+  }, [recordings, metadata]);
 
   if (!metadata) return null;
 
@@ -181,11 +189,11 @@ export default function AnalysisCard({ recordings, metadata, type }: AnalysisCar
 
       {/* Perplexity AI Analysis */}
       <div className="mb-4">
-        <h5 className="mb-2 font-medium text-foreground">Perplexity AI Analysis</h5>
+        <h5 className="mb-2 font-medium text-foreground">Perplexity AI Insights</h5>
         {perplexityAnalysis ? (
           <p className="text-sm text-muted-foreground">{perplexityAnalysis}</p>
         ) : (
-          <p className="text-sm text-muted-foreground">Loading analysis...</p>
+          <p className="text-sm text-muted-foreground">Loading insights...</p>
         )}
       </div>
 
@@ -324,7 +332,6 @@ function isClassificationResponse(data: unknown): data is ClassificationResponse
     typeof (data as ClassificationResponse).confidence === "number"
   );
 }
-
 // Helper function to validate the response structure
 function isPerplexityAnalysisResponse(data: unknown): data is { analysis: string } {
   return (

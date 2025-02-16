@@ -3,6 +3,7 @@
 import { Separator } from "@/components/ui/separator";
 import { TypographyH2, TypographyP } from "@/components/ui/typography";
 import { motion } from "framer-motion";
+import Image from "next/image";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -21,6 +22,15 @@ const staggerChildren = {
 export default function Home() {
   return (
     <motion.div initial="initial" animate="animate" variants={staggerChildren}>
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.7 }}
+        className="mb-8 flex justify-center"
+      >
+        <Image src="/logo.png" alt="SquadPulse Logo" width={100} height={100} priority />
+      </motion.div>
+
       <motion.div variants={fadeIn}>
         <TypographyH2>
           <motion.span
