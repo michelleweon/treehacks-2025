@@ -23,9 +23,15 @@ interface AIClassification {
   confidence: number;
 }
 
+interface ClassificationResponse {
+  classification: "regular" | "irregular" | "afib" | "unclassified";
+  confidence: number;
+}
+
 export default function AnalysisCard({ recordings, metadata, type }: AnalysisCardProps) {
   const [aiClassification, setAiClassification] = useState<AIClassification | null>(null);
   const [isClassifying, setIsClassifying] = useState(false);
+  const [perplexityAnalysis, setPerplexityAnalysis] = useState<string | null>(null);
 
   useEffect(() => {
     async function getClassification() {
@@ -41,10 +47,14 @@ export default function AnalysisCard({ recordings, metadata, type }: AnalysisCar
 
         if (response.ok) {
           const data = await response.json();
-          setAiClassification({
-            classification: data.classification,
-            confidence: data.confidence,
-          });
+          if (isClassificationResponse(data)) {
+            setAiClassification({
+              classification: data.classification,
+              confidence: data.confidence,
+            });
+          } else {
+            console.error("Unexpected response structure:", data);
+          }
         }
       } catch (error) {
         console.error("Failed to get AI classification:", error);
@@ -53,8 +63,38 @@ export default function AnalysisCard({ recordings, metadata, type }: AnalysisCar
       }
     }
 
-    getClassification();
+    (async () => {
+      await getClassification();
+    })().catch((error) => {
+      console.error("Error in classification effect:", error);
+    });
   }, [recordings, metadata, isClassifying]);
+
+  useEffect(() => {
+    async function fetchPerplexityAnalysis() {
+      try {
+        const response = await fetch("/api/analyze");
+        if (response.ok) {
+          const data: unknown = await response.json();
+          if (isPerplexityAnalysisResponse(data)) {
+            setPerplexityAnalysis(data.analysis);
+          } else {
+            console.error("Unexpected analysis structure:", data);
+          }
+        } else {
+          console.error("Failed to fetch Perplexity AI analysis");
+        }
+      } catch (error) {
+        console.error("Error fetching Perplexity AI analysis:", error);
+      }
+    }
+
+    (async () => {
+      await fetchPerplexityAnalysis();
+    })().catch((error) => {
+      console.error("Error in perplexity analysis effect:", error);
+    });
+  }, []);
 
   if (!metadata) return null;
 
@@ -127,6 +167,16 @@ export default function AnalysisCard({ recordings, metadata, type }: AnalysisCar
         )}
       </div>
 
+      {/* Perplexity AI Analysis */}
+      <div className="mb-4">
+        <h5 className="mb-2 font-medium text-foreground">Perplexity AI Analysis</h5>
+        {perplexityAnalysis ? (
+          <p className="text-sm text-muted-foreground">{perplexityAnalysis}</p>
+        ) : (
+          <p className="text-sm text-muted-foreground">Loading analysis...</p>
+        )}
+      </div>
+
       {/* Risk Assessment */}
       <div className="mb-4">
         <h5 className="mb-2 font-medium text-foreground">Risk Assessment</h5>
@@ -180,11 +230,14 @@ function calculateHRV(values: number[]): number {
   // Calculate RR intervals (time between peaks)
   const rrIntervals = [];
   for (let i = 1; i < values.length; i++) {
-    const timeDiff = 1000 / 100; // 100Hz sampling rate = 10ms between samples
-    const amplitude = Math.abs(values[i] - values[i - 1]);
-    if (amplitude > 0) {
-      // Only consider significant changes
-      rrIntervals.push(amplitude);
+    const currentValue = values[i];
+    const previousValue = values[i - 1];
+    if (currentValue !== undefined && previousValue !== undefined) {
+      const amplitude = Math.abs(currentValue - previousValue);
+      if (amplitude > 0) {
+        // Only consider significant changes
+        rrIntervals.push(amplitude);
+      }
     }
   }
 
@@ -193,8 +246,12 @@ function calculateHRV(values: number[]): number {
   // Calculate RMSSD (Root Mean Square of Successive Differences)
   const squaredDifferences = [];
   for (let i = 1; i < rrIntervals.length; i++) {
-    const diff = rrIntervals[i] - rrIntervals[i - 1];
-    squaredDifferences.push(diff * diff);
+    const currentInterval = rrIntervals[i];
+    const previousInterval = rrIntervals[i - 1];
+    if (currentInterval !== undefined && previousInterval !== undefined) {
+      const diff = currentInterval - previousInterval;
+      squaredDifferences.push(diff * diff);
+    }
   }
 
   const meanSquaredDiff = squaredDifferences.reduce((sum, val) => sum + val, 0) / squaredDifferences.length;
@@ -216,21 +273,21 @@ function determineRiskLevel(
   metadata: NonNullable<AnalysisCardProps["metadata"]>,
   type: AnalysisCardProps["type"],
 ): "Low" | "Medium" | "High" {
-  if (type === "afib" || metadata.atrial_fibrillation > 50) return "High";
-  if (type === "irregular" || metadata.extrasystoles_frequent > 30) return "Medium";
+  if (type === "afib" || (metadata.atrial_fibrillation ?? 0) > 50) return "High";
+  if (type === "irregular" || (metadata.extrasystoles_frequent ?? 0) > 30) return "Medium";
   return "Low";
 }
 
 function getRecommendations(type: AnalysisCardProps["type"], metadata: NonNullable<AnalysisCardProps["metadata"]>) {
   const recommendations = [];
 
-  if (type === "afib" || metadata.atrial_fibrillation > 50) {
+  if (type === "afib" || (metadata.atrial_fibrillation ?? 0) > 50) {
     recommendations.push("Immediate medical attention recommended");
   }
-  if (metadata.bradycardia > 30) {
+  if ((metadata.bradycardia ?? 0) > 30) {
     recommendations.push("Monitor for low heart rate episodes");
   }
-  if (metadata.tachycardia > 30) {
+  if ((metadata.tachycardia ?? 0) > 30) {
     recommendations.push("Monitor for high heart rate episodes");
   }
 
@@ -242,5 +299,26 @@ function getRecommendations(type: AnalysisCardProps["type"], metadata: NonNullab
         </p>
       ))}
     </div>
+  );
+}
+
+// Helper function to validate the response structure
+function isClassificationResponse(data: unknown): data is ClassificationResponse {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    typeof (data as ClassificationResponse).classification === "string" &&
+    ["regular", "irregular", "afib", "unclassified"].includes((data as ClassificationResponse).classification) &&
+    typeof (data as ClassificationResponse).confidence === "number"
+  );
+}
+
+// Helper function to validate the response structure
+function isPerplexityAnalysisResponse(data: unknown): data is { analysis: string } {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    "analysis" in data &&
+    typeof (data as { analysis: unknown }).analysis === "string"
   );
 }
