@@ -31,3 +31,5 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };
+
+// Look for any redirect rules that might send users to /species

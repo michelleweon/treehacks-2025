@@ -2,6 +2,7 @@ import type { Database } from "@/types/supabase";
 import { createClient } from "@supabase/supabase-js";
 import { OpenAI } from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
+import { sleep } from "@/lib/utils";
 
 // Check environment variables
 if (!process.env.OPENAI_API_KEY || !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -13,8 +14,13 @@ const supabase = createClient<Database>(
   process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
 );
 
+if (!process.env.OPENAI_API_KEY) {
+  throw new Error("Missing OPENAI_API_KEY environment variable");
+}
+
+// Use the key safely
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY ?? "",
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 interface Recording {
@@ -30,79 +36,128 @@ interface Recording {
 
 type Classification = "regular" | "irregular" | "afib" | "unclassified";
 
+const queue = new Set();
+const MAX_CONCURRENT = 3;
+
 export async function POST(request: Request) {
-  if (!process.env.OPENAI_API_KEY) {
-    return Response.json({ error: "OpenAI API key not configured" }, { status: 500 });
+  const id = Math.random().toString(36);
+
+  while (queue.size >= MAX_CONCURRENT) {
+    await sleep(1000);
   }
 
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return Response.json({ error: "Supabase credentials not configured" }, { status: 500 });
-  }
-
+  queue.add(id);
   try {
-    const { recordings, metadata } = (await request.json()) as {
-      recordings: Recording[];
-      metadata: Database["public"]["Tables"]["metadata"]["Row"];
-    };
-
-    if (!recordings.length) {
-      return Response.json({ error: "No recordings provided" }, { status: 400 });
+    if (!process.env.OPENAI_API_KEY) {
+      return Response.json({ error: "OpenAI API key not configured" }, { status: 500 });
     }
 
-    // Prepare data for OpenAI
-    const dataDescription = `
-      Recording Analysis:
-      - Total Samples: ${recordings.length}
-      - Duration: ${recordings.length / 100}s
-      - AFib: ${metadata.atrial_fibrillation ?? 0}%
-      - Bradycardia: ${metadata.bradycardia ?? 0}%
-      - Tachycardia: ${metadata.tachycardia ?? 0}%
-      - Extrasystoles: ${metadata.extrasystoles_frequent ?? 0}%
-
-      Signal Statistics:
-      - Average IR: ${calculateAverage(recordings.map((r) => r.ir))}
-      - Average Motion: ${calculateMotionIntensity(recordings)}
-      - Heart Rate Variability: ${calculateHRV(recordings.map((r) => r.ir).filter(Boolean))}
-    `;
-
-    const messages: ChatCompletionMessageParam[] = [
-      {
-        role: "system",
-        content:
-          "You are a medical AI assistant that classifies heart recordings as regular, irregular, afib, or unclassified. Respond only with one of these classifications.",
-      },
-      {
-        role: "user",
-        content: dataDescription,
-      },
-    ];
-
-    const completion = await openai.chat.completions.create({
-      messages,
-      model: "gpt-4-turbo-preview",
-      max_tokens: 10,
-      temperature: 0.1,
-    });
-
-    const content = completion.choices[0]?.message?.content?.toLowerCase() ?? "unclassified";
-    const classification = validateClassification(content);
-    const confidence = completion.choices[0]?.finish_reason === "stop" ? 1 : 0.5;
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return Response.json({ error: "Supabase credentials not configured" }, { status: 500 });
+    }
 
     try {
-      await supabase.from("ai_classifications").upsert({
-        filename: recordings[0].filename,
-        classification,
-        confidence,
-        timestamp: new Date().toISOString(),
-      });
-    } catch (dbError) {
-      console.error("Failed to store classification:", dbError);
-    }
+      const { recordings, metadata } = (await request.json()) as {
+        recordings: Recording[];
+        metadata: Database["public"]["Tables"]["metadata"]["Row"];
+      };
 
-    return Response.json({ classification, confidence });
-  } catch (error) {
-    console.error("Classification error:", error);
-    return Response.json({ error: "Failed to classify recording" }, { status: 500 });
+      if (!recordings.length) {
+        return Response.json({ error: "No recordings provided" }, { status: 400 });
+      }
+
+      const filename = recordings[0]?.filename;
+
+      // Check cache first
+      const { data: cached } = await supabase
+        .from("ai_classifications")
+        .select("*")
+        .eq("filename", filename)
+        .single();
+
+      if (cached) {
+        return Response.json({
+          classification: cached.classification,
+          confidence: cached.confidence,
+        });
+      }
+
+      // Prepare data for OpenAI
+      const dataDescription = `
+        Recording Analysis:
+        - Total Samples: ${recordings.length}
+        - Duration: ${recordings.length / 100}s
+        - AFib: ${metadata.atrial_fibrillation ?? 0}%
+        - Bradycardia: ${metadata.bradycardia ?? 0}%
+        - Tachycardia: ${metadata.tachycardia ?? 0}%
+        - Extrasystoles: ${metadata.extrasystoles_frequent ?? 0}%
+
+        Signal Statistics:
+        - Average IR: ${calculateAverage(recordings.map((r) => r.ir))}
+        - Average Motion: ${calculateMotionIntensity(recordings)}
+        - Heart Rate Variability: ${calculateHRV(recordings.map((r) => r.ir).filter(Boolean))}
+      `;
+
+      const messages: ChatCompletionMessageParam[] = [
+        {
+          role: "system",
+          content:
+            "You are a medical AI assistant that classifies heart recordings as regular, irregular, afib, or unclassified. Respond only with one of these classifications.",
+        },
+        {
+          role: "user",
+          content: dataDescription,
+        },
+      ];
+
+      // Add retry logic
+      const maxRetries = 3;
+      let retryCount = 0;
+      let completion;
+
+      while (retryCount < maxRetries) {
+        try {
+          completion = await openai.chat.completions.create({
+            messages,
+            model: "gpt-3.5-turbo",
+            max_tokens: 10,
+            temperature: 0.1,
+          });
+          break; // Success, exit loop
+        } catch (error: any) {
+          if (error?.code === 'rate_limit_exceeded') {
+            retryCount++;
+            if (retryCount === maxRetries) throw error;
+            // Wait 20 seconds before retrying
+            await sleep(20000);
+            continue;
+          }
+          throw error; // Re-throw other errors
+        }
+      }
+
+      const content = completion.choices[0]?.message?.content?.toLowerCase() ?? "unclassified";
+      const classification = validateClassification(content);
+      const confidence = completion.choices[0]?.finish_reason === "stop" ? 1 : 0.5;
+
+      try {
+        await supabase.from("ai_classifications").upsert({
+          filename: recordings[0].filename,
+          classification,
+          confidence,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (dbError) {
+        console.error("Failed to store classification:", dbError);
+      }
+
+      return Response.json({ classification, confidence });
+    } catch (error) {
+      console.error("Classification error:", error);
+      return Response.json({ error: "Failed to classify recording" }, { status: 500 });
+    }
+  } finally {
+    queue.delete(id);
   }
 }
 

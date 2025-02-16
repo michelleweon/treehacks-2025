@@ -18,3 +18,5 @@ export function delay(milliseconds: number) {
     setTimeout(resolve, milliseconds);
   });
 }
+
+export const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

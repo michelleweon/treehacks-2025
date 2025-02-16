@@ -1,7 +1,7 @@
 "use client";
 
 import type { Database } from "@/types/supabase";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 interface AnalysisCardProps {
   recordings: {
@@ -31,19 +31,27 @@ interface ClassificationResponse {
 export default function AnalysisCard({ recordings, metadata, type }: AnalysisCardProps) {
   const [aiClassification, setAiClassification] = useState<AIClassification | null>(null);
   const [isClassifying, setIsClassifying] = useState(false);
+  const hasAttemptedRef = useRef(false);
   const [perplexityAnalysis, setPerplexityAnalysis] = useState<string | null>(null);
 
   useEffect(() => {
     async function getClassification() {
-      if (!metadata || isClassifying) return;
+      if (!metadata || isClassifying || aiClassification || hasAttemptedRef.current) return;
 
+      hasAttemptedRef.current = true;
       setIsClassifying(true);
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
         const response = await fetch("/api/classify-recording", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ recordings, metadata }),
+          signal: controller.signal,
         });
+
+        clearTimeout(timeoutId);
 
         if (response.ok) {
           const data = await response.json();
@@ -57,7 +65,11 @@ export default function AnalysisCard({ recordings, metadata, type }: AnalysisCar
           }
         }
       } catch (error) {
-        console.error("Failed to get AI classification:", error);
+        if (error.name === 'AbortError') {
+          console.log('Request timed out');
+        } else {
+          console.error("Failed to get AI classification:", error);
+        }
       } finally {
         setIsClassifying(false);
       }
@@ -159,7 +171,7 @@ export default function AnalysisCard({ recordings, metadata, type }: AnalysisCar
               <span className="ml-2 text-xs">({(aiClassification.confidence * 100).toFixed(1)}% confidence)</span>
             </div>
             {aiClassification.classification !== type && (
-              <p className="text-sm text-amber-600">Note: AI classification differs from current classification</p>
+              <p className="text-sm text-amber-600">Note: AI classification may differ from current classification</p>
             )}
           </div>
         ) : (
