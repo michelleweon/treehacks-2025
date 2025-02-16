@@ -1,0 +1,175 @@
+"use client";
+
+import type { Database } from "@/types/supabase";
+
+interface AnalysisCardProps {
+  recordings: {
+    filename: string;
+    sample_index: number;
+    green: number | null;
+    red: number | null;
+    ir: number | null;
+    acc_x: number | null;
+    acc_y: number | null;
+    acc_z: number | null;
+  }[];
+  metadata: Database["public"]["Tables"]["metadata"]["Row"] | undefined;
+  type: "afib" | "irregular" | "regular" | "unclassified";
+}
+
+export default function AnalysisCard({ recordings, metadata, type }: AnalysisCardProps) {
+  if (!metadata) return null;
+
+  // Calculate key metrics
+  const totalSamples = recordings.length;
+  const recordingDuration = totalSamples / 100; // Assuming 100Hz sampling rate
+
+  // Calculate heart rate variability (using IR signal)
+  const irValues = recordings.map((r) => r.ir).filter((v): v is number => v !== null);
+  const hrv = calculateHRV(irValues);
+
+  // Calculate motion intensity from accelerometer
+  const motionIntensity = calculateMotionIntensity(recordings);
+
+  // Determine risk level based on metadata and type
+  const riskLevel = determineRiskLevel(metadata, type);
+
+  return (
+    <div className="rounded-lg border border-border bg-background p-4 shadow-sm">
+      {/* Header */}
+      <div className="mb-4">
+        <h4 className="text-lg font-semibold text-foreground">Analysis Summary</h4>
+        <p className="text-sm text-muted-foreground">
+          Based on {totalSamples} samples over {recordingDuration.toFixed(1)}s
+        </p>
+      </div>
+
+      {/* Key Metrics */}
+      <div className="mb-4 grid grid-cols-2 gap-2 text-sm">
+        <div>
+          <p className="font-medium text-foreground">Heart Rate Variability:</p>
+          <p className="text-muted-foreground">{hrv.toFixed(2)}</p>
+        </div>
+        <div>
+          <p className="font-medium text-foreground">Motion Intensity:</p>
+          <p className="text-muted-foreground">{motionIntensity.toFixed(2)}</p>
+        </div>
+      </div>
+
+      {/* Risk Assessment */}
+      <div className="mb-4">
+        <h5 className="mb-2 font-medium text-foreground">Risk Assessment</h5>
+        <div
+          className={`
+          mb-2 rounded-md px-2 py-1 text-sm font-medium
+          ${
+            riskLevel === "High"
+              ? "bg-red-100 text-red-700"
+              : riskLevel === "Medium"
+                ? "bg-yellow-100 text-yellow-700"
+                : "bg-green-100 text-green-700"
+          }
+        `}
+        >
+          {riskLevel} Risk Level
+        </div>
+        {getRecommendations(type, metadata)}
+      </div>
+
+      {/* Metadata Highlights */}
+      <div className="space-y-2 text-sm">
+        <h5 className="font-medium text-foreground">Key Findings</h5>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <p className="text-muted-foreground">AFib:</p>
+            <p className="text-foreground">{(metadata.atrial_fibrillation ?? 0).toFixed(3)}%</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Bradycardia:</p>
+            <p className="text-foreground">{(metadata.bradycardia ?? 0).toFixed(3)}%</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Tachycardia:</p>
+            <p className="text-foreground">{(metadata.tachycardia ?? 0).toFixed(3)}%</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Extrasystoles:</p>
+            <p className="text-foreground">{(metadata.extrasystoles_frequent ?? 0).toFixed(3)}%</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Helper functions
+function calculateHRV(values: number[]): number {
+  if (values.length < 2) return 0;
+
+  // Calculate RR intervals (time between peaks)
+  const rrIntervals = [];
+  for (let i = 1; i < values.length; i++) {
+    const timeDiff = 1000 / 100; // 100Hz sampling rate = 10ms between samples
+    const amplitude = Math.abs(values[i] - values[i - 1]);
+    if (amplitude > 0) {
+      // Only consider significant changes
+      rrIntervals.push(amplitude);
+    }
+  }
+
+  if (rrIntervals.length < 2) return 0;
+
+  // Calculate RMSSD (Root Mean Square of Successive Differences)
+  const squaredDifferences = [];
+  for (let i = 1; i < rrIntervals.length; i++) {
+    const diff = rrIntervals[i] - rrIntervals[i - 1];
+    squaredDifferences.push(diff * diff);
+  }
+
+  const meanSquaredDiff = squaredDifferences.reduce((sum, val) => sum + val, 0) / squaredDifferences.length;
+  return Math.sqrt(meanSquaredDiff);
+}
+
+function calculateMotionIntensity(recordings: AnalysisCardProps["recordings"]): number {
+  return (
+    recordings.reduce((sum, r) => {
+      const x = r.acc_x ?? 0;
+      const y = r.acc_y ?? 0;
+      const z = r.acc_z ?? 0;
+      return sum + Math.sqrt(x * x + y * y + z * z);
+    }, 0) / recordings.length
+  );
+}
+
+function determineRiskLevel(
+  metadata: NonNullable<AnalysisCardProps["metadata"]>,
+  type: AnalysisCardProps["type"],
+): "Low" | "Medium" | "High" {
+  if (type === "afib" || metadata.atrial_fibrillation > 50) return "High";
+  if (type === "irregular" || metadata.extrasystoles_frequent > 30) return "Medium";
+  return "Low";
+}
+
+function getRecommendations(type: AnalysisCardProps["type"], metadata: NonNullable<AnalysisCardProps["metadata"]>) {
+  const recommendations = [];
+
+  if (type === "afib" || metadata.atrial_fibrillation > 50) {
+    recommendations.push("Immediate medical attention recommended");
+  }
+  if (metadata.bradycardia > 30) {
+    recommendations.push("Monitor for low heart rate episodes");
+  }
+  if (metadata.tachycardia > 30) {
+    recommendations.push("Monitor for high heart rate episodes");
+  }
+
+  return (
+    <div className="mt-2 space-y-1">
+      {recommendations.map((rec, i) => (
+        <p key={i} className="text-sm text-muted-foreground">
+          • {rec}
+        </p>
+      ))}
+    </div>
+  );
+}

@@ -35,22 +35,33 @@ export default function AddNewTeamDialog() {
         throw new Error("Please upload a valid ZIP file");
       }
 
-      const response = await fetch("/api/upload-recordings", {
+      // First upload the file
+      const uploadResponse = await fetch("/api/upload-recordings", {
         method: "POST",
         body: formData,
       });
 
-      if (!response.ok) {
-        const errorData = (await response.json()) as { error: string };
+      if (!uploadResponse.ok) {
+        const errorData = (await uploadResponse.json()) as { error: string };
         throw new Error(errorData.error || "Failed to upload file");
+      }
+
+      // Then process it
+      const processResponse = await fetch("/api/process-recordings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: file.name }),
+      });
+
+      if (!processResponse.ok) {
+        throw new Error("Failed to process recordings");
       }
 
       toast({
         title: "Success",
-        description: "File uploaded successfully",
+        description: "File uploaded and processed successfully",
       });
 
-      // Store form reference before closing dialog
       form.reset();
       setOpen(false);
     } catch (error) {
