@@ -1,12 +1,13 @@
 import { Separator } from "@/components/ui/separator";
 import { TypographyH2 } from "@/components/ui/typography";
 import { createServerSupabaseClient } from "@/lib/server-utils";
-import { redirect } from "next/navigation";
-import RecordingCard from "./recording-card";
-import AddNewTeamDialog from "./add-new-team-dialog";
 import type { Database } from "@/types/supabase";
+import { redirect } from "next/navigation";
+import PerplexityChatbot from "../PerplexityChatbot";
+import AddNewTeamDialog from "./add-new-team-dialog";
 import AnalysisCard from "./analysis-card";
 import GraphCard from "./graph-card";
+import RecordingCard from "./recording-card";
 
 export default async function Dashboard() {
   const supabase = createServerSupabaseClient();
@@ -22,7 +23,10 @@ export default async function Dashboard() {
   const { data: afib } = await supabase.from("afib").select("*").order("sample_index", { ascending: false });
   const { data: irregular } = await supabase.from("irregular").select("*").order("sample_index", { ascending: false });
   const { data: regular } = await supabase.from("regular").select("*").order("sample_index", { ascending: false });
-  const { data: unclassified } = await supabase.from("unclassified").select("*").order("sample_index", { ascending: false });
+  const { data: unclassified } = await supabase
+    .from("unclassified")
+    .select("*")
+    .order("sample_index", { ascending: false });
   const { data: metadata } = await supabase.from("metadata").select("*");
 
   // Create a map of filename to metadata for easier lookup
@@ -33,7 +37,7 @@ export default async function Dashboard() {
       }
       return acc;
     },
-    {}
+    {},
   );
 
   // Group data by filename for each type
@@ -68,21 +72,9 @@ export default async function Dashboard() {
           <div className="grid grid-cols-1 gap-4">
             {Object.entries(regularByFile).map(([filename, recordings]) => (
               <div key={filename} className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <RecordingCard
-                  recordings={recordings}
-                  type="regular"
-                  metadata={metadataByFile[filename]}
-                />
-                <AnalysisCard
-                  recordings={recordings}
-                  type="regular"
-                  metadata={metadataByFile[filename]}
-                />
-                <GraphCard
-                  recordings={recordings}
-                  type="regular"
-                  metadata={metadataByFile[filename]}
-                />
+                <RecordingCard recordings={recordings} type="regular" metadata={metadataByFile[filename]} />
+                <AnalysisCard recordings={recordings} type="regular" metadata={metadataByFile[filename]} />
+                <GraphCard recordings={recordings} type="regular" metadata={metadataByFile[filename]} />
               </div>
             ))}
           </div>
@@ -94,21 +86,9 @@ export default async function Dashboard() {
           <div className="grid grid-cols-1 gap-4">
             {Object.entries(irregularByFile).map(([filename, recordings]) => (
               <div key={filename} className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <RecordingCard
-                  recordings={recordings}
-                  type="irregular"
-                  metadata={metadataByFile[filename]}
-                />
-                <AnalysisCard
-                  recordings={recordings}
-                  type="irregular"
-                  metadata={metadataByFile[filename]}
-                />
-                <GraphCard
-                  recordings={recordings}
-                  type="irregular"
-                  metadata={metadataByFile[filename]}
-                />
+                <RecordingCard recordings={recordings} type="irregular" metadata={metadataByFile[filename]} />
+                <AnalysisCard recordings={recordings} type="irregular" metadata={metadataByFile[filename]} />
+                <GraphCard recordings={recordings} type="irregular" metadata={metadataByFile[filename]} />
               </div>
             ))}
           </div>
@@ -120,21 +100,9 @@ export default async function Dashboard() {
           <div className="grid grid-cols-1 gap-4">
             {Object.entries(afibByFile).map(([filename, recordings]) => (
               <div key={filename} className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <RecordingCard
-                  recordings={recordings}
-                  type="afib"
-                  metadata={metadataByFile[filename]}
-                />
-                <AnalysisCard
-                  recordings={recordings}
-                  type="afib"
-                  metadata={metadataByFile[filename]}
-                />
-                <GraphCard
-                  recordings={recordings}
-                  type="afib"
-                  metadata={metadataByFile[filename]}
-                />
+                <RecordingCard recordings={recordings} type="afib" metadata={metadataByFile[filename]} />
+                <AnalysisCard recordings={recordings} type="afib" metadata={metadataByFile[filename]} />
+                <GraphCard recordings={recordings} type="afib" metadata={metadataByFile[filename]} />
               </div>
             ))}
           </div>
@@ -146,26 +114,16 @@ export default async function Dashboard() {
           <div className="grid grid-cols-1 gap-4">
             {Object.entries(unclassifiedByFile).map(([filename, recordings]) => (
               <div key={filename} className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <RecordingCard
-                  recordings={recordings}
-                  type="unclassified"
-                  metadata={metadataByFile[filename]}
-                />
-                <AnalysisCard
-                  recordings={recordings}
-                  type="unclassified"
-                  metadata={metadataByFile[filename]}
-                />
-                <GraphCard
-                  recordings={recordings}
-                  type="unclassified"
-                  metadata={metadataByFile[filename]}
-                />
+                <RecordingCard recordings={recordings} type="unclassified" metadata={metadataByFile[filename]} />
+                <AnalysisCard recordings={recordings} type="unclassified" metadata={metadataByFile[filename]} />
+                <GraphCard recordings={recordings} type="unclassified" metadata={metadataByFile[filename]} />
               </div>
             ))}
           </div>
         </section>
       </div>
+
+      <PerplexityChatbot />
     </>
   );
 }
