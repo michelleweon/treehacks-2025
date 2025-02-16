@@ -47,66 +47,74 @@ export default function RecordingCard({ recordings, type }: RecordingCardProps) 
   };
 
   return (
-    <div className="bg-white rounded-lg p-4 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
+    <div className="rounded-lg border border-border bg-background p-4 shadow-sm">
+      {/* Header */}
+      <div className="mb-4">
+        <h4 className="text-lg font-semibold text-foreground">
+          {filename}
+          <span
+            className={`ml-2 text-sm ${
+              type === "afib" ? "text-red-600" : type === "irregular" ? "text-yellow-600" : "text-green-600"
+            }`}
+          >
+            ({type.toUpperCase()})
+          </span>
+        </h4>
+        <p className="text-sm text-muted-foreground">Samples: {recordings.length}</p>
+      </div>
+
+      {/* Average Sensor Data */}
+      <div className="mb-4 grid grid-cols-2 gap-2 text-sm">
         <div>
-          <h4 className="text-lg font-semibold">{filename}</h4>
-          <p className="text-sm text-gray-500">Samples: {recordings.length}</p>
+          <p className="font-medium text-foreground">Avg Green:</p>
+          <p className="text-muted-foreground">{averages.green.toFixed(2)}</p>
         </div>
-        <span className={`px-3 py-1 rounded-full text-sm ${
-          type === "afib"
-            ? "bg-red-100 text-red-600"
-            : type === "irregular"
-            ? "bg-yellow-100 text-yellow-600"
-            : "bg-green-100 text-green-600"
-        }`}>
-          {type.toUpperCase()}
-        </span>
-      </div>
-
-      <div className="grid grid-cols-3 gap-4 mb-4">
-        <div className="bg-gray-50 p-3 rounded">
-          <p className="text-sm text-gray-500">Avg Green</p>
-          <p className="text-lg font-semibold">{averages.green.toFixed(1)}</p>
+        <div>
+          <p className="font-medium text-foreground">Avg Red:</p>
+          <p className="text-muted-foreground">{averages.red.toFixed(2)}</p>
         </div>
-        <div className="bg-gray-50 p-3 rounded">
-          <p className="text-sm text-gray-500">Avg Red</p>
-          <p className="text-lg font-semibold">{averages.red.toFixed(1)}</p>
-        </div>
-        <div className="bg-gray-50 p-3 rounded">
-          <p className="text-sm text-gray-500">Avg IR</p>
-          <p className="text-lg font-semibold">{averages.ir.toFixed(1)}</p>
+        <div>
+          <p className="font-medium text-foreground">Avg IR:</p>
+          <p className="text-muted-foreground">{averages.ir.toFixed(2)}</p>
         </div>
       </div>
 
-      <div className="h-32">
+      {/* Average Accelerometer Data */}
+      <div className="mb-4">
+        <h5 className="mb-2 font-medium text-foreground">Average Accelerometer</h5>
+        <div className="grid grid-cols-3 gap-2 text-sm">
+          <div>
+            <p className="text-muted-foreground">X:</p>
+            <p className="text-foreground">{averages.acc_x.toFixed(2)}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Y:</p>
+            <p className="text-foreground">{averages.acc_y.toFixed(2)}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Z:</p>
+            <p className="text-foreground">{averages.acc_z.toFixed(2)}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Time Series Chart */}
+      <div className="h-32 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="index" tick={false} />
-            <YAxis tick={false} />
-            <Tooltip />
-            <Line
-              type="monotone"
-              dataKey="green"
-              stroke="#22c55e"
-              strokeWidth={1.5}
-              dot={false}
+            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+            <XAxis dataKey="index" stroke="currentColor" />
+            <YAxis stroke="currentColor" />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "var(--background)",
+                borderColor: "var(--border)",
+                color: "var(--foreground)",
+              }}
             />
-            <Line
-              type="monotone"
-              dataKey="red"
-              stroke="#ef4444"
-              strokeWidth={1.5}
-              dot={false}
-            />
-            <Line
-              type="monotone"
-              dataKey="ir"
-              stroke="#8884d8"
-              strokeWidth={1.5}
-              dot={false}
-            />
+            <Line type="monotone" dataKey="green" stroke="#22c55e" strokeWidth={2} name="Green" />
+            <Line type="monotone" dataKey="red" stroke="#ef4444" strokeWidth={2} name="Red" />
+            <Line type="monotone" dataKey="ir" stroke="#8884d8" strokeWidth={2} name="IR" />
           </LineChart>
         </ResponsiveContainer>
       </div>
