@@ -22,7 +22,7 @@ interface RecordingCardProps {
     acc_y: number | null;
     acc_z: number | null;
   }[];
-  type: "afib" | "irregular" | "regular";
+  type: "afib" | "irregular" | "regular" | "unclassified";
 }
 
 export default function RecordingCard({ recordings, type }: RecordingCardProps) {
@@ -54,7 +54,13 @@ export default function RecordingCard({ recordings, type }: RecordingCardProps) 
           {filename}
           <span
             className={`ml-2 text-sm ${
-              type === "afib" ? "text-red-600" : type === "irregular" ? "text-yellow-600" : "text-green-600"
+              type === "afib"
+                ? "text-red-600"
+                : type === "irregular"
+                  ? "text-yellow-600"
+                  : type === "unclassified"
+                    ? "text-blue-600"
+                    : "text-green-600"
             }`}
           >
             ({type.toUpperCase()})
