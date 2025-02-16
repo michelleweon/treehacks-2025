@@ -71,6 +71,38 @@ export interface Database {
           },
         ];
       };
+      recordings: {
+        Row: {
+          sample_index: number;
+          green: number | null;
+          red: number | null;
+          ir: number | null;
+          acc_x: number | null;
+          acc_y: number | null;
+          acc_z: number | null;
+          filename: string | null;
+        };
+        Insert: {
+          sample_index: number;
+          green?: number | null;
+          red?: number | null;
+          ir?: number | null;
+          acc_x?: number | null;
+          acc_y?: number | null;
+          acc_z?: number | null;
+          filename?: string | null;
+        };
+        Update: {
+          sample_index?: number;
+          green?: number | null;
+          red?: number | null;
+          ir?: number | null;
+          acc_x?: number | null;
+          acc_y?: number | null;
+          acc_z?: number | null;
+          filename?: string | null;
+        };
+      };
     };
     Views: {
       [_ in never]: never;

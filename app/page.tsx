@@ -5,19 +5,16 @@ export default function Home() {
   return (
     <>
       <TypographyH2>
-        Welcome to T4SG <span className="text-green-400">Biodiversity Hub</span>!
+        <span className="text-green-400">SquadPulse</span>: Your Mission-Critical Healthcare Analytics Platform in Real Time
       </TypographyH2>
       <TypographyP>
-        Biodiversity Hub is a web-app that allows users to post information about different species and stay educated on
-        biodiversity across the globe. Users sign into the app and add cards that contain data on the species&apos;
-        name, description, population, and more.
+        SquadPulse uses the Terra.AI API to perform personalized data analysis on your health metrics from wearing the Ultrahuman Air Rings. 
       </TypographyP>
-      <TypographyP>To see the species page, log in in the top right!</TypographyP>
+      <TypographyP>To see the data page, log in in the top right!</TypographyP>
       <Separator className="my-4" />
       <TypographyP>
-        Biodiversity Hub was created as an example webapp for T4SG&apos;s Spring 2024 applications.
+        See your data metrics for heart rate, physical activity, mental health well being, and sleep tracking. 
       </TypographyP>
-      <TypographyP>Good luck! We can&apos;t wait to see what you create :)</TypographyP>
     </>
   );
 }

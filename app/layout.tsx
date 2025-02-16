@@ -6,8 +6,8 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata = {
-  title: "T4SG Biodiversity Hub",
-  description: "T4SG Deliverable for Spring 2024 Applications.",
+  title: "SquadPulse",
+  description: "Tree Hacks 2025 -- Developed by: Jeffrey Zhou, Rick Yang, Michelle Weon",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
